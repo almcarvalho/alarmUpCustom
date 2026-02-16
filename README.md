@@ -67,20 +67,27 @@ No portal, preencha:
 
 ### 📲 Discord Webhook
 
-🔔 Como criar um Webhook para receber notificações
-Abra o Discord.
-Crie um Servidor (ou use um existente).
-Crie um Canal de Texto.
-Vá em:
-Configurações do Servidor
-→ Integrações
-→ Webhooks
-Clique em Novo Webhook.
-Escolha o canal onde quer receber as mensagens.
-Clique em Copiar URL do Webhook.
-Cole essa URL no campo Discord Webhook do portal do ESP32.
-Obs. Você pode usar esse mesmo canal de notificacoes e adicionar outras pessoas nele para que elas também recebam as notificaçoes.
-Cole a URL completa do webhook:
+## 🔔 Como criar um Webhook para receber notificações
+
+1. Abra o **Discord**.
+2. Crie um **Servidor** (ou use um já existente).
+3. Crie um **Canal de Texto** onde deseja receber as notificações.
+4. Vá em:
+5. Clique em **Novo Webhook**.
+6. Escolha o canal onde as mensagens serão enviadas.
+7. Clique em **Copiar URL do Webhook**.
+8. Cole essa URL no campo **Discord Webhook** no portal do ESP32.
+
+---
+
+### ⚠️ Observação
+
+Você pode usar esse mesmo canal de notificações e adicionar outras pessoas nele para que elas também recebam os alertas.
+
+Cole a URL completa do webhook, por exemplo: 
+https://discord.com/api/webhooks/123456789/
+
+
 
 
 
