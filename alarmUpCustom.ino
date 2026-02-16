@@ -2,6 +2,8 @@
 // HC-SR501 & ESP32 - 2026-02-02
 // Versão com WiFiManager custom params + NTP + regras + reset config
 // AJUSTE: permite tempo do relé = 0 (modo somente notificação)
+// AJUSTE: notificação com horário LOCAL (America/Sao_Paulo) e formato PT-BR:
+//         📢 Movimento detectado! Segunda-feira 16/02 às 14h12
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -53,7 +55,7 @@ enum ModoAcao : uint8_t {
 };
 
 struct Config {
-  uint16_t releSegundos = 10; // AGORA 0 É PERMITIDO
+  uint16_t releSegundos = 10; // 0 É PERMITIDO
   uint8_t  releModo = MODO_SEMPRE;
 
   char webhook[220] = ""; // Discord webhook pode ser grande
@@ -63,8 +65,8 @@ struct Config {
 Config cfg;
 
 // ---- NTP / Timezone ----
-// Bahia = UTC-3 (sem DST)
-static const char* TZ_INFO = "BRT3";
+// Ajuste: usar timezone IANA para garantir hora local correta no ESP32
+static const char* TZ_INFO = "America/Sao_Paulo";
 static const char* NTP1 = "pool.ntp.org";
 static const char* NTP2 = "time.google.com";
 static const char* NTP3 = "a.ntp.br";
@@ -216,13 +218,41 @@ bool buttonLongPressReset() {
   return false;
 }
 
+// ---- Helpers de formatação PT-BR ----
+const char* nomeDiaSemanaPT(int wday) {
+  // tm_wday: 0=Dom,1=Seg,...6=Sab
+  switch (wday) {
+    case 0: return "Domingo";
+    case 1: return "Segunda-feira";
+    case 2: return "Terça-feira";
+    case 3: return "Quarta-feira";
+    case 4: return "Quinta-feira";
+    case 5: return "Sexta-feira";
+    case 6: return "Sábado";
+    default: return "";
+  }
+}
+
+String formatarDataHoraPT() {
+  time_t now = time(nullptr);
+  tm t; localtime_r(&now, &t);
+
+  char buf[80];
+  // Ex: "Segunda-feira 16/02 às 14h12"
+  snprintf(buf, sizeof(buf), "%s %02d/%02d às %02dh%02d",
+           nomeDiaSemanaPT(t.tm_wday),
+           t.tm_mday, t.tm_mon + 1,
+           t.tm_hour, t.tm_min);
+
+  return String(buf);
+}
+
 // ---- NTP Setup ----
 void setupTimeNTP() {
   Serial.println("🕒 Configurando NTP...");
-  setenv("TZ", TZ_INFO, 1);
-  tzset();
 
-  configTime(0, 0, NTP1, NTP2, NTP3);
+  // Ajuste principal: configura TZ + NTP com timezone IANA (hora local correta)
+  configTzTime(TZ_INFO, NTP1, NTP2, NTP3);
 
   unsigned long start = millis();
   while (!timeReady() && (millis() - start) < 8000) {
@@ -232,7 +262,7 @@ void setupTimeNTP() {
   if (timeReady()) {
     time_t now = time(nullptr);
     tm t; localtime_r(&now, &t);
-    Serial.print("✅ Hora sincronizada: ");
+    Serial.print("✅ Hora sincronizada (local): ");
     Serial.printf("%04d-%02d-%02d %02d:%02d:%02d (wday=%d)\n",
                   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
                   t.tm_hour, t.tm_min, t.tm_sec, t.tm_wday);
@@ -303,17 +333,15 @@ void alerta() {
 
   https.addHeader("Content-Type", "application/json");
 
-  String extra = "";
+  // Ajuste: mensagem com horário local e formato solicitado
+  String httpRequestData;
   if (timeReady()) {
-    time_t now = time(nullptr);
-    tm t; localtime_r(&now, &t);
-    char buf[40];
-    snprintf(buf, sizeof(buf), "%02d/%02d %02d:%02d",
-             t.tm_mday, t.tm_mon + 1, t.tm_hour, t.tm_min);
-    extra = String(" | ") + buf;
+    httpRequestData = String("{\"content\":\"📢 Movimento detectado! ")
+                    + formatarDataHoraPT()
+                    + "\"}";
+  } else {
+    httpRequestData = String("{\"content\":\"📢 Movimento detectado!\"}");
   }
-
-  String httpRequestData = String("{\"content\":\"🚨 Movimento detectado!") + extra + "\"}";
 
   int httpCode = https.POST(httpRequestData);
 
