@@ -2,8 +2,8 @@
 // HC-SR501 & ESP32 - 2026-02-02
 // Versão com WiFiManager custom params + NTP + regras + reset config
 // AJUSTE: permite tempo do relé = 0 (modo somente notificação)
-// AJUSTE: notificação com horário LOCAL (America/Sao_Paulo) e formato PT-BR:
-//         📢 Movimento detectado! Segunda-feira 16/02 às 14h12
+// AJUSTE: força hora LOCAL (-03:00) via configTime(GMT_OFFSET_SEC) + getLocalTime()
+//         Formato: 📢 Movimento detectado! Segunda-feira 16/02 às 14h12
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -65,8 +65,10 @@ struct Config {
 Config cfg;
 
 // ---- NTP / Timezone ----
-// Ajuste: usar timezone IANA para garantir hora local correta no ESP32
-static const char* TZ_INFO = "America/Sao_Paulo";
+// Bahia = UTC-3, sem DST -> FORÇAR offset -3h
+static const long GMT_OFFSET_SEC = -3 * 3600;
+static const int  DAYLIGHT_OFFSET_SEC = 0;
+
 static const char* NTP1 = "pool.ntp.org";
 static const char* NTP2 = "time.google.com";
 static const char* NTP3 = "a.ntp.br";
@@ -126,29 +128,6 @@ bool isDayTime(const tm& t) {
 bool timeReady() {
   time_t now = time(nullptr);
   return now > 1700000000; // ~2023/2024 pra frente
-}
-
-bool modoPermite(uint8_t modo) {
-  // Se não tem hora ainda:
-  // - “sempre” permite
-  // - demais modos bloqueiam até sincronizar
-  if (!timeReady()) return (modo == MODO_SEMPRE);
-
-  time_t now = time(nullptr);
-  tm t;
-  localtime_r(&now, &t);
-
-  bool dia = isDayTime(t);
-  bool dentro = isWithinBusinessHours(t);
-
-  switch (modo) {
-    case MODO_SEMPRE: return true;
-    case MODO_DIA: return dia;
-    case MODO_NOITE: return !dia;
-    case MODO_FORA_COMERCIAL: return !dentro;
-    case MODO_DENTRO_COMERCIAL: return dentro;
-    default: return true;
-  }
 }
 
 // ---- Persistência ----
@@ -233,9 +212,16 @@ const char* nomeDiaSemanaPT(int wday) {
   }
 }
 
+// Pega hora LOCAL de forma confiável (respeitando GMT_OFFSET_SEC)
+bool getLocalTM(tm &out) {
+  // getLocalTime aplica o offset configurado no configTime
+  if (!getLocalTime(&out, 1500)) return false;
+  return true;
+}
+
 String formatarDataHoraPT() {
-  time_t now = time(nullptr);
-  tm t; localtime_r(&now, &t);
+  tm t{};
+  if (!getLocalTM(t)) return String("");
 
   char buf[80];
   // Ex: "Segunda-feira 16/02 às 14h12"
@@ -247,21 +233,46 @@ String formatarDataHoraPT() {
   return String(buf);
 }
 
+bool modoPermite(uint8_t modo) {
+  // Se não tem hora ainda:
+  // - “sempre” permite
+  // - demais modos bloqueiam até sincronizar
+  if (!timeReady()) return (modo == MODO_SEMPRE);
+
+  tm t{};
+  if (!getLocalTM(t)) {
+    // Se falhar pegar hora local, mantém a regra acima
+    return (modo == MODO_SEMPRE);
+  }
+
+  bool dia = isDayTime(t);
+  bool dentro = isWithinBusinessHours(t);
+
+  switch (modo) {
+    case MODO_SEMPRE: return true;
+    case MODO_DIA: return dia;
+    case MODO_NOITE: return !dia;
+    case MODO_FORA_COMERCIAL: return !dentro;
+    case MODO_DENTRO_COMERCIAL: return dentro;
+    default: return true;
+  }
+}
+
 // ---- NTP Setup ----
 void setupTimeNTP() {
-  Serial.println("🕒 Configurando NTP...");
+  Serial.println("🕒 Configurando NTP (offset -03:00)...");
 
-  // Ajuste principal: configura TZ + NTP com timezone IANA (hora local correta)
-  configTzTime(TZ_INFO, NTP1, NTP2, NTP3);
+  // AJUSTE PRINCIPAL:
+  // Força offset -3 horas no sistema (Bahia) e usa NTP
+  configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP1, NTP2, NTP3);
 
   unsigned long start = millis();
-  while (!timeReady() && (millis() - start) < 8000) {
+  while (!timeReady() && (millis() - start) < 10000) {
     delay(200);
   }
 
-  if (timeReady()) {
-    time_t now = time(nullptr);
-    tm t; localtime_r(&now, &t);
+  tm t{};
+  if (timeReady() && getLocalTM(t)) {
     Serial.print("✅ Hora sincronizada (local): ");
     Serial.printf("%04d-%02d-%02d %02d:%02d:%02d (wday=%d)\n",
                   t.tm_year + 1900, t.tm_mon + 1, t.tm_mday,
@@ -333,12 +344,15 @@ void alerta() {
 
   https.addHeader("Content-Type", "application/json");
 
-  // Ajuste: mensagem com horário local e formato solicitado
+  // Mensagem no formato solicitado, com hora LOCAL (-03:00)
   String httpRequestData;
   if (timeReady()) {
-    httpRequestData = String("{\"content\":\"📢 Movimento detectado! ")
-                    + formatarDataHoraPT()
-                    + "\"}";
+    String quando = formatarDataHoraPT();
+    if (quando.length() > 0) {
+      httpRequestData = String("{\"content\":\"📢 Movimento detectado! ") + quando + "\"}";
+    } else {
+      httpRequestData = String("{\"content\":\"📢 Movimento detectado!\"}");
+    }
   } else {
     httpRequestData = String("{\"content\":\"📢 Movimento detectado!\"}");
   }
@@ -462,7 +476,7 @@ void setup() {
 
   digitalWrite(ledStatus, HIGH);
 
-  // NTP
+  // NTP (com offset -03:00)
   setupTimeNTP();
 
   Serial.print("Aguardando estabilizacao do PIR por ");
