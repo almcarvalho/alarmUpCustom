@@ -138,6 +138,9 @@ https://discord.com/api/webhooks/123456789/
 
 ---
 
+<img width="900" height="800" alt="alarmUpCustomPinout" src="https://github.com/user-attachments/assets/ac2d4c84-0059-4bad-a362-de489b3d37b9" />
+
+
 ✅ Pronto!  
 O sistema já está monitorando movimento.
 
