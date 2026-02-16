@@ -1,6 +1,6 @@
 # 🚨 Alarme PIR ESP32 (HC-SR501) + Relé + Discord  
 **Criado por Lucas Carvalho (@br.lcsistemas)**  
-Versão: 2026-02-02  
+Versão: 2026-02-15
 
 Sistema de alarme inteligente com **ESP32 + Sensor PIR HC-SR501**, com:
 
@@ -10,13 +10,13 @@ Sistema de alarme inteligente com **ESP32 + Sensor PIR HC-SR501**, com:
 - 🕒 Controle por horário (dia/noite/comercial)
 - 🔄 Reset por botão físico
 - 🧠 Sincronização automática de horário via NTP
-- ⚙️ Tempo do relé pode ser **0 segundos (modo somente notificação)**
+- ⚙️ Tempo do relé customizável. Pode ser **0 segundos (modo somente notificação)**
 
 ---
 
 # 📦 Funcionalidades
 
-## ✅ Relé configurável
+## ✅ Relé (Interruptor) configurável
 - Tempo configurável via portal
 - Pode ser:
   - Sempre
@@ -31,5 +31,5 @@ Sistema de alarme inteligente com **ESP32 + Sensor PIR HC-SR501**, com:
 ---
 
 ## ✅ Notificação Discord
-Envio automático de mensagem via webhook:
+Envio automático de mensagem via webhook.
 
