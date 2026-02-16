@@ -102,7 +102,7 @@ bool isWithinBusinessHours(const tm& t) {
   // Segunda a Sexta (1..5)
   if (wday >= 1 && wday <= 5) {
     bool manha = (nowM >= toMin(7,50) && nowM <= toMin(12,15));
-    bool tarde = (nowM >= toMin(14,20) && nowM <= toMin(18,20));
+    bool tarde = (nowM >= toMin(14,00) && nowM <= toMin(18,20));
     return manha || tarde;
   }
 
