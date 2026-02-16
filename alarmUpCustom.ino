@@ -1,6 +1,7 @@
 // Criado por Lucas Carvalho @br.lcsistemas
 // HC-SR501 & ESP32 - 2026-02-02
 // Versão com WiFiManager custom params + NTP + regras + reset config
+// AJUSTE: permite tempo do relé = 0 (modo somente notificação)
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -14,10 +15,10 @@
 const int pirPin = 27;       // PIR OUT
 const int ledStatus = 2;     // LED indicador (status)
 const int relePin = 25;      // RELÉ
-const int btnResetPin = 0;   // BOOT (GPIO0) - normalmente já existe no ESP32
+const int btnResetPin = 0;   // BOOT (GPIO0)
 
 // ---- Configurações default ----
-unsigned long tempoAlarmeMs = 10000; // default 10s (vai ser configurável)
+unsigned long tempoAlarmeMs = 10000; // default 10s (configurável)
 const unsigned long cooldownMs = 60000;
 const unsigned long logIntervalMs = 700;
 
@@ -52,7 +53,7 @@ enum ModoAcao : uint8_t {
 };
 
 struct Config {
-  uint16_t releSegundos = 10;
+  uint16_t releSegundos = 10; // AGORA 0 É PERMITIDO
   uint8_t  releModo = MODO_SEMPRE;
 
   char webhook[220] = ""; // Discord webhook pode ser grande
@@ -62,8 +63,7 @@ struct Config {
 Config cfg;
 
 // ---- NTP / Timezone ----
-// Bahia = UTC-3. Brasil atualmente sem DST.
-// TZ string POSIX: "BRT3" (UTC-3)
+// Bahia = UTC-3 (sem DST)
 static const char* TZ_INFO = "BRT3";
 static const char* NTP1 = "pool.ntp.org";
 static const char* NTP2 = "time.google.com";
@@ -115,23 +115,21 @@ bool isWithinBusinessHours(const tm& t) {
 }
 
 // Dia/noite (definição simples)
-// Ajuste se quiser: dia=06:00-17:59, noite=18:00-05:59
+// Dia=06:00-17:59, Noite=18:00-05:59
 bool isDayTime(const tm& t) {
   int m = toMin(t.tm_hour, t.tm_min);
   return (m >= toMin(6,0) && m < toMin(18,0));
 }
 
-// Checa se já temos hora válida
 bool timeReady() {
   time_t now = time(nullptr);
-  // Se ainda for muito antigo, NTP não sincronizou
   return now > 1700000000; // ~2023/2024 pra frente
 }
 
 bool modoPermite(uint8_t modo) {
-  // Se não tem hora ainda, por segurança:
+  // Se não tem hora ainda:
   // - “sempre” permite
-  // - os outros modos bloqueiam até sincronizar
+  // - demais modos bloqueiam até sincronizar
   if (!timeReady()) return (modo == MODO_SEMPRE);
 
   time_t now = time(nullptr);
@@ -166,7 +164,7 @@ void loadConfig() {
     wh.toCharArray(cfg.webhook, sizeof(cfg.webhook));
   }
 
-  // aplica no runtime
+  // aplica no runtime (0 permitido)
   tempoAlarmeMs = (unsigned long)cfg.releSegundos * 1000UL;
 }
 
@@ -178,17 +176,17 @@ void saveConfig() {
   prefs.putString("webhook", String(cfg.webhook));
   prefs.end();
 
+  // aplica no runtime (0 permitido)
   tempoAlarmeMs = (unsigned long)cfg.releSegundos * 1000UL;
 }
 
 void clearConfigAndWifi() {
   Serial.println("🧹 Limpando WiFiManager + Preferences...");
-  // limpa NVS
+
   prefs.begin("alarme", false);
   prefs.clear();
   prefs.end();
 
-  // limpa WiFiManager credentials
   WiFiManager wm;
   wm.resetSettings();
 
@@ -198,19 +196,19 @@ void clearConfigAndWifi() {
 
 // ---- Reset via botão BOOT ----
 bool buttonLongPressReset() {
-  static bool last = true;
+  static bool lastPressed = false;
   static unsigned long t0 = 0;
 
-  bool pressed = (digitalRead(btnResetPin) == LOW); // BOOT normalmente é pullup, ativo em LOW
+  bool pressed = (digitalRead(btnResetPin) == LOW);
 
-  if (pressed && !last) {
+  if (pressed && !lastPressed) {
     t0 = millis();
   }
   if (!pressed) {
     t0 = 0;
   }
 
-  last = pressed;
+  lastPressed = pressed;
 
   if (pressed && t0 != 0 && (millis() - t0) >= 5000) {
     return true;
@@ -226,7 +224,6 @@ void setupTimeNTP() {
 
   configTime(0, 0, NTP1, NTP2, NTP3);
 
-  // Tenta esperar um pouco sincronizar (sem travar demais)
   unsigned long start = millis();
   while (!timeReady() && (millis() - start) < 8000) {
     delay(200);
@@ -288,7 +285,6 @@ void alerta() {
     return;
   }
 
-  // respeita modo de notificação
   if (!modoPermite(cfg.notifModo)) {
     Serial.println("🔕 Notificacao bloqueada pelo modo configurado.");
     return;
@@ -307,7 +303,6 @@ void alerta() {
 
   https.addHeader("Content-Type", "application/json");
 
-  // inclui info de horário (se tiver)
   String extra = "";
   if (timeReady()) {
     time_t now = time(nullptr);
@@ -334,13 +329,12 @@ void alerta() {
 
 // -------------------- SETUP / LOOP --------------------
 void setup() {
-  // Para HC-SR501: ajuda a evitar leitura flutuante
   pinMode(pirPin, INPUT_PULLDOWN);
 
   pinMode(ledStatus, OUTPUT);
   pinMode(relePin, OUTPUT);
 
-  pinMode(btnResetPin, INPUT_PULLUP); // BOOT
+  pinMode(btnResetPin, INPUT_PULLUP);
 
   digitalWrite(ledStatus, LOW);
   digitalWrite(relePin, LOW);
@@ -358,14 +352,12 @@ void setup() {
   WiFiManager wifiManager;
   wifiManager.setConfigPortalTimeout(180);
 
-  // Campos do portal:
-  // Relé segundos
+  // Relé segundos (0 = não aciona)
   char releSegStr[6];
   snprintf(releSegStr, sizeof(releSegStr), "%u", (unsigned)cfg.releSegundos);
-  WiFiManagerParameter p_rele_seg("rele_seg", "Rele: tempo aceso (segundos)", releSegStr, 5);
+  WiFiManagerParameter p_rele_seg("rele_seg", "Rele: tempo aceso (segundos) - 0=nao acionar", releSegStr, 5);
 
   // Modo Relé (0..4)
-  // 0=sempre,1=dia,2=noite,3=fora comercial,4=dentro comercial
   char releModoStr[3];
   snprintf(releModoStr, sizeof(releModoStr), "%u", (unsigned)cfg.releModo);
   WiFiManagerParameter p_rele_modo(
@@ -393,14 +385,14 @@ void setup() {
   wifiManager.addParameter(&p_webhook);
   wifiManager.addParameter(&p_notif_modo);
 
-  // Se apertar BOOT no boot por ~2s, abre portal direto (opcional)
-  // (boa prática para forçar reconfiguração sem apagar nada)
+  // Forçar portal no boot segurando BOOT por ~1s (opcional)
   bool forcePortal = false;
   unsigned long t0 = millis();
   while (millis() - t0 < 1200) {
     if (digitalRead(btnResetPin) == LOW) { forcePortal = true; break; }
     delay(10);
   }
+
   if (forcePortal) {
     Serial.println("🔧 BOOT pressionado no inicio: abrindo portal WiFiManager...");
     wifiManager.startConfigPortal("ALARME", "1234567890");
@@ -417,14 +409,12 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // Lê valores do portal e salva
-  // (IMPORTANTE: isso é o “onde alterar” que você perguntou)
   uint16_t newReleS = (uint16_t)atoi(p_rele_seg.getValue());
   uint8_t newReleM = (uint8_t)atoi(p_rele_modo.getValue());
   uint8_t newNotM  = (uint8_t)atoi(p_notif_modo.getValue());
 
-  // saneamento simples
-  if (newReleS < 1) newReleS = 1;
-  if (newReleS > 600) newReleS = 600; // limite 10min por segurança
+  // saneamento (0 permitido)
+  if (newReleS > 600) newReleS = 600; // limite 10min
   if (newReleM > 4) newReleM = 0;
   if (newNotM > 4) newNotM = 0;
 
@@ -482,8 +472,8 @@ void loop() {
     Serial.println();
   }
 
-  // Desliga relé depois do tempo configurado
-  if (releAtivo && (agora - inicioRele >= tempoAlarmeMs)) {
+  // Desliga relé depois do tempo configurado (se tempo > 0)
+  if (releAtivo && tempoAlarmeMs > 0 && (agora - inicioRele >= tempoAlarmeMs)) {
     desligaRele(agora);
   }
 
@@ -508,10 +498,16 @@ void loop() {
 
       // Decide se PODE acionar relé conforme modo configurado
       if (modoPermite(cfg.releModo)) {
-        ligaRele(agora);
-        Serial.print("🚨 Movimento CONFIRMADO! Relé ligado por ");
-        Serial.print(cfg.releSegundos);
-        Serial.println("s.");
+
+        if (cfg.releSegundos > 0) {
+          ligaRele(agora);
+          Serial.print("🚨 Movimento CONFIRMADO! Relé ligado por ");
+          Serial.print(cfg.releSegundos);
+          Serial.println("s.");
+        } else {
+          Serial.println("🚨 Movimento confirmado, mas tempo do relé = 0 (modo somente notificacao).");
+        }
+
       } else {
         Serial.println("🚫 Movimento confirmado, mas RELÉ bloqueado pelo modo configurado.");
       }
