@@ -39,11 +39,15 @@ Envio automático de mensagem via webhook.
 
 ## ⚙️ 3️⃣ Configurar o Sistema
 
-No portal, preencha:
+Quando você liga esse equipamento pela primeira vez ele gera uma rede wifi 
+para que você possa se conectar a ela e definir as configurações.
 
 ### 📶 Wi-Fi
-- Escolha sua rede
-- Digite a senha
+- Conecte-se na placa. Rede: AlarmUP
+- Digite a senha: 1234567890
+- Após conexão veja o ip gerado
+- abra no navegador. Ex: 192.168.1.4
+- Defina as suas configurações e clique em salvar.
 
 ---
 
