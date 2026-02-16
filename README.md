@@ -33,3 +33,68 @@ Sistema de alarme inteligente com **ESP32 + Sensor PIR HC-SR501**, com:
 ## ✅ Notificação Discord
 Envio automático de mensagem via webhook.
 
+
+
+---
+
+## ⚙️ 3️⃣ Configurar o Sistema
+
+No portal, preencha:
+
+### 📶 Wi-Fi
+- Escolha sua rede
+- Digite a senha
+
+---
+
+### 🔔 Relé – Tempo (segundos)
+- Defina quantos segundos o relé ficará ligado
+- Use **0** se quiser apenas notificação (sem acionar relé)
+
+---
+
+### 🕒 Relé Modo (digite número)
+
+| Número | Modo |
+|---------|--------|
+| 0 | Sempre |
+| 1 | Dia |
+| 2 | Noite |
+| 3 | Fora horário comercial |
+| 4 | Dentro horário comercial |
+
+---
+
+### 📲 Discord Webhook
+Cole a URL completa do webhook:
+
+### 🔔 Notificação Modo (0–4)
+| Número | Modo |
+|---------|--------|
+| 0 | Sempre |
+| 1 | Dia |
+| 2 | Noite |
+| 3 | Fora horário comercial |
+| 4 | Dentro horário comercial |
+
+---
+
+## 💾 4️⃣ Salvar
+
+- Clique em **Salvar**
+- O ESP irá reiniciar
+- Conectará automaticamente na sua rede
+
+---
+
+## 🔄 Reset das Configurações
+
+- Segure o botão **BOOT** por 5 segundos  
+→ Apaga Wi-Fi e configurações  
+→ Reinicia o sistema
+
+---
+
+✅ Pronto!  
+O sistema já está monitorando movimento.
+
