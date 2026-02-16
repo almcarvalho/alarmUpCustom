@@ -114,6 +114,22 @@ https://discord.com/api/webhooks/123456789/
 
 ---
 
+## 📅 Definição de Horário Comercial
+
+### 🗓 Segunda a Sexta-feira
+- **07:50 – 12:15**
+- **14:20 – 18:20**
+
+---
+
+### 🗓 Sábado
+- **07:50 – 13:00**
+
+---
+
+### 🗓 Domingo
+- ❌ Não é considerado horário comercial
+
 ## 🔄 Reset das Configurações
 
 - Segure o botão **BOOT** por 5 segundos  
