@@ -118,7 +118,7 @@ https://discord.com/api/webhooks/123456789/
 
 ### 🗓 Segunda a Sexta-feira
 - **07:50 – 12:15**
-- **14:20 – 18:20**
+- **14:00 – 18:20**
 
 ---
 
